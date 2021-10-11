@@ -15,7 +15,19 @@ esus_filtered <- esus %>%
   mutate(across(everything(), ~replace_na(.x, "Não preenchido")))
 
 confirmados <- esus_filtered %>%
-  filter(grepl("Confirmado.*$", classificação_final),evolução != "Cancelado")
+  filter(evolução != "Cancelado") %>%
+  # preciso verificar quais tem resultado detectavel ou reagente e inserir "Confirmado laboratorialmente"
+  mutate(classificação_final = sapply(add_classification(classificação_final))) %>%
+  filter(grepl("Confirmado.*$", classificação_final))
+
+
+# Adiciona classificacao para os casos nao preenchidos, mas com teste laboratorial detectado
+add_classification <- function(df) {
+  ##TODO
+    # Pegar cada item que contem resultado detectavel/reagente e alterar na confirmacao :)
+  df %>%
+    
+}
 
 # Verifica se notificação foi realizada em determinado tempo
 is_duplicate <- function(df) {
@@ -27,12 +39,12 @@ is_duplicate <- function(df) {
   for (cpf in dup_df) {
     not_count <- 0
     count_cnes <- 0
-    notificacoes_cpf <- sort(as.Date(df[df$CPF == cpf, "Data.da.NotificaÃ§Ã£o"], "%d/%m/%Y"))
+    notificacoes_cpf <- sort(as.Date(df[df$CPF == cpf, "Data.da.Notificação"], "%d/%m/%Y"))
     time_diff <- diff(notificacoes_cpf)
     cnes <- summary.factor(df[df$CPF == cpf,"CNES.NotificaÃ§Ã£o"])
     # diferenciar dos que coletaram o teste em =======dias diferentes
     for (time in time_diff) {
-      if (time <= 7) {
+      if (time <= 30) {
         not_count <- not_count + 1
       }
     }
