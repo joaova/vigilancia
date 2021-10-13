@@ -43,6 +43,18 @@ confirmados <- esus_filtered %>%
   filter(grepl("Confirmado.*$", classificação_final), evolução != "Cancelado") %>%
   rbind(confirmados_sem_classificação)
 
+####### Avalia duplicados ############
+
+notificacoes_duplicadas <- confirmados %>%
+  filter(cpf != "Não preenchido") %>%
+  group_by(cpf) %>%
+  filter(n()>1) %>%
+  arrange(cpf, data_notificação) %>%
+  summarize(intervalo_not = diff(data_notificação)) %>%
+  filter(intervalo_not <= 30) %>%
+  count(name = "notificações_excedentes") %>%
+  ungroup()
+
 ############ Testes com gráfico ####################
 # TODO
 # Não vai funcionar porque eu alterei o código acima
@@ -60,53 +72,3 @@ ggplot(testes_quant, aes(x=value, y=second_col_values)) +
   ylab("Quantidade") +
   ggtitle("Testes positivos em pacientes não classificados") +
   geom_col()
-
-####### Avalia duplicados ############
-
-notificacoes_duplicadas <- confirmados %>%
-  filter(cpf != "Não preenchido") %>%
-  group_by(cpf) %>%
-  filter(n()>1) %>%
-  arrange(cpf, data_notificação) %>%
-  summarize(intervalo_not = diff(data_notificação)) %>%
-  filter(intervalo_not <= 30) %>%
-  count(name = "notificações_excedentes") %>%
-  ungroup()
-
-################ Função velha #######################
-# Fazer um join depois para comparar os outputs
-
-# Verifica se notificação foi realizada em determinado tempo
-# Por enquanto funciona apenas para CPF (não leva em consideração nome)
-is_duplicate <- function(df) {
-  # Valores únicos de CPF's duplicados
-  cpfs_duplicados <- unique(df$cpf[duplicated(df$cpf)])
-  cpf_not_exedente <- character()
-  not_excedentes <- numeric()
-  for (valor in cpfs_duplicados) {
-    not_count <- 0
-    #notificacoes_cpf <- sort(as.Date(df[df$cpf == cpf, "data_notificação"], "%d/%m/%Y"))
-    notificacoes_cpf <- df %>%
-      filter(cpf == valor) %>%
-      mutate(data_notificação = as.Date(data_notificação, "%d/%m/%Y")) %>%
-      select(data_notificação)
-    time_diff <- diff(pull(notificacoes_cpf))
-    # diferenciar dos que coletaram o teste em =======dias diferentes
-    for (time in time_diff) {
-      if (time <= 30) {
-        not_count <- not_count + 1
-      }
-    }
-    if (not_count > 0) {
-      cpf_not_exedente <- c(cpf_not_exedente, valor)
-      not_excedentes <- c(not_excedentes, not_count)
-    }
-  }
-  return(tibble(cpf_not_exedente,not_excedentes))
-}
-
-# Olha se existem duplicados nos confirmados
-duplicados <- confimados %>%
-  filter(cpf != "Não preenchido") %>%
-  is_duplicate() %>%
-  arrange(desc(not_excedentes))
