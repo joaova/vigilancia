@@ -9,7 +9,10 @@ esus_filtered <- esus %>%
          nome_mae = `Nome Completo da Mãe`, contains("Resultado"), 
          data_notificação = `Data da Notificação`, evolução = `Evolução Caso`,
          cnes = `CNES Notificação`, classificação_final = `Classificação Final`) %>%
-  mutate(across(everything(), ~replace_na(.x, "Não preenchido")))
+  mutate(across(everything(), ~replace_na(.x, "Não preenchido"))) %>%
+  mutate(cpf = gsub(pattern="\\.|\\-", "", cpf), nome_completo = toupper(nome_completo)) %>%
+  mutate(data_notificação = as.Date(data_notificação, "%d/%m/%Y")) %>%
+  filter(evolução != "Cancelado")
 
 ############### Avalia as classificações não preenchidas, porém onde há testagem positiva ######################
 
@@ -19,7 +22,7 @@ classificacao_ignorada <- esus_filtered %>%
 
 
 # Substitui detectável/confirmado por TRUE e o oposto para FALSE e avalia se existe QUALQUER teste positivo
-  # em cada linha. Retorna para "testes_positivos" um vetor booleano
+  # em cada linha da dataframe. Retorna para "testes_positivos" um vetor booleano
 testes_positivos <- classificacao_ignorada %>%
   select(contains("Resultado")) %>%
   mutate(across(.cols = everything(), function(x) (x == "Detectável" | x == "Reagente"))) %>%
@@ -29,7 +32,7 @@ testes_positivos <- classificacao_ignorada %>%
 confirmados_sem_classificação <- classificacao_ignorada %>%
   select(-contains("Resultado")) %>%
   filter(testes_positivos) %>%
-  mutate(classificação_final = "Confirmado Laboratorial")
+  mutate(classificação_final = "Confirmado Laboratorial*")
 
 # Pega somente os casos confirmados, independente do tipo de confirmação
 # Estou tirando as tabelas de resultado apenas para deixar mais limpo, 
@@ -59,6 +62,19 @@ ggplot(testes_quant, aes(x=value, y=second_col_values)) +
   geom_col()
 
 ####### Avalia duplicados ############
+
+notificacoes_duplicadas <- confirmados %>%
+  filter(cpf != "Não preenchido") %>%
+  group_by(cpf) %>%
+  filter(n()>1) %>%
+  arrange(cpf, data_notificação) %>%
+  summarize(intervalo_not = diff(data_notificação)) %>%
+  filter(intervalo_not <= 30) %>%
+  count(name = "notificações_excedentes") %>%
+  ungroup()
+
+################ Função velha #######################
+# Fazer um join depois para comparar os outputs
 
 # Verifica se notificação foi realizada em determinado tempo
 # Por enquanto funciona apenas para CPF (não leva em consideração nome)
@@ -90,5 +106,7 @@ is_duplicate <- function(df) {
 }
 
 # Olha se existem duplicados nos confirmados
-duplicados <- is_duplicate(confirmados) %>%
+duplicados <- confimados %>%
+  filter(cpf != "Não preenchido") %>%
+  is_duplicate() %>%
   arrange(desc(not_excedentes))

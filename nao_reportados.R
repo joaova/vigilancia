@@ -1,7 +1,4 @@
-library(dplyr)
-library(ggplot2)
-library(readr)
-library(tidyr)
+library(tidyverse)
 
 ######## Importanção ############
 esus <- read_csv2("R/esus.csv", col_types = cols(.default = "c"))
