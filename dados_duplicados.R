@@ -10,7 +10,8 @@ esus_filtered <- esus %>%
          data_notificação = `Data da Notificação`, evolução = `Evolução Caso`,
          cnes = `CNES Notificação`, classificação_final = `Classificação Final`) %>%
   mutate(across(everything(), ~replace_na(.x, "Não preenchido"))) %>%
-  mutate(cpf = gsub(pattern="\\.|\\-", "", cpf), nome_completo = toupper(nome_completo)) %>%
+ #  mutate(cpf = gsub(pattern="\\D", "", cpf), nome = stri_trans_general(toupper(str_squish(str_trim(nome))), "Latin-ASCII")) %>%
+  mutate(cpf = gsub(pattern="\\D", "", cpf), nome_completo = toupper(nome_completo)) %>%
   mutate(data_notificação = as.Date(data_notificação, "%d/%m/%Y")) %>%
   filter(evolução != "Cancelado")
 
@@ -29,6 +30,7 @@ testes_positivos <- classificacao_ignorada %>%
   transmute(resultado_final = map_lgl(pmap_dbl(.,sum), ~(.x>0)))
 
 # Filtra com base no vetor acima e classifica esses pacientes como confirmados
+# Excluir o IgG???
 confirmados_sem_classificação <- classificacao_ignorada %>%
   select(-contains("Resultado")) %>%
   filter(testes_positivos) %>%
@@ -44,9 +46,9 @@ confirmados <- esus_filtered %>%
   rbind(confirmados_sem_classificação)
 
 ####### Avalia duplicados ############
-
+# Lembrar que antes eu classifiquei paciente anteriormente não classificados
 notificacoes_duplicadas <- confirmados %>%
-  filter(cpf != "Não preenchido") %>%
+  filter(cpf != "") %>%
   group_by(cpf) %>%
   filter(n()>1) %>%
   arrange(cpf, data_notificação) %>%
@@ -54,6 +56,11 @@ notificacoes_duplicadas <- confirmados %>%
   filter(intervalo_not <= 30) %>%
   count(name = "notificações_excedentes") %>%
   ungroup()
+
+not_dup_data <- confirmados %>%
+  select(cpf, data_notificação) %>%
+  filter(cpf %in% notificacoes_duplicadas$cpf) %>%
+  arrange(cpf, data_notificação)
 
 ############ Testes com gráfico ####################
 # TODO

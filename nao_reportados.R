@@ -1,4 +1,7 @@
 library(tidyverse)
+library(stringi)
+library(fuzzyjoin)
+library(stringdist)
 
 ######## Importanção ############
 esus <- read_csv2("R/esus.csv", col_types = cols(.default = "c"))
@@ -9,15 +12,18 @@ gal <- as_tibble(gal)
 ####### Manipulação dos dados ###########
 mod_gal <- gal %>%
   select(nome = Paciente, cns = CNS, cpf = CPF, data_cadastro = Dt..Cadastro) %>%
-  mutate(nome = toupper(nome))
+  mutate(nome = gsub(pattern = "[^a-zA-Z ]", "", nome)) %>%
+  mutate(nome = stri_trans_general(toupper(str_squish(str_trim(nome))), "Latin-ASCII"))
 
 mod_esus <- esus %>%
   select(n_notificação = `Número da Notificação`, cpf = CPF, nome = `Nome Completo`, 
          data_notificação = `Data da Notificação`, evolução = `Evolução Caso`,
          classificação_final = `Classificação Final`) %>%
   mutate(across(everything(), ~replace_na(.x, "Não preenchido"))) %>%
-  mutate(cpf = gsub(pattern="\\.|\\-", "", cpf), nome = toupper(nome)) %>%
-  filter(evolução != "Cancelado")
+  mutate(nome = gsub(pattern = "[^a-zA-Z ]", "", nome)) %>%
+  mutate(cpf = gsub(pattern="\\D", "", cpf), nome = stri_trans_general(toupper(str_squish(str_trim(nome))), "Latin-ASCII")) %>%
+  filter(evolução != "Cancelado") %>%
+  arrange(nome)
 
 ########### Análise #############
 
@@ -45,3 +51,15 @@ gal_sem_esus <- rbind(gal_cpf_sem_esus, gal_nome_sem_esus) %>%
   mutate(data_cadastro = as.Date(data_cadastro, format="%d/%m/%Y")) %>%
   arrange(data_cadastro)
 
+gal_esus_nome <- mod_gal %>%
+  arrange(nome) %>%
+  mutate(id = row_number()) %>%
+  left_join(mod_esus, by="nome", suffix=c("_gal", "_esus")) %>%
+  mutate(across(.cols = c("data_cadastro", "data_notificação"), as.Date, format="%d/%m/%Y")) %>%
+  arrange(nome, data_cadastro, data_notificação) %>%
+  filter(!is.na(data_cadastro)) %>%
+  relocate(data_notificação, .after = data_cadastro) %>%
+  relocate(id, .before = nome)
+
+  
+  
