@@ -1,7 +1,6 @@
 library(tidyverse)
 
-esus <- read_csv2("R/esus.csv", col_types = cols(.default = "c"))
-esus_confirmados <- read_csv2("R/confirmados.csv", col_types = cols(.default = "c"))
+esus <- read_csv2("esus.csv", col_types = cols(.default = "c"))
 
 # Filtra a df para as colunas que gostaria de usar,além de substituir os dados NA para "Não preenchido"
 esus_filtered <- esus %>%

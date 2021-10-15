@@ -1,33 +1,41 @@
 library(tidyverse)
+library(lubridate)
 library(stringi)
 library(openxlsx)
 
 ############### Preparando os arquivos ################
 
-
 ######## Importação ############
-esus <- read_csv2("R/esus.csv", col_types = cols(.default = "c"))
-#gal <- read_csv2("R/data.csv", col_types = cols(.default = "c"), col_select = c(2:4,18))
+file_names <- paste0(c(1:length(dir("C:/Users/joaov/Documents/R/SITE", recursive=TRUE, pattern="*.zip"))), ".zip")
 
-gal1 <- read.csv2("R/data1.csv", colClasses="character", fileEncoding = "ISO-8859-1") %>%
-  as_tibble()
-gal2 <- read.csv2("R/data2.csv", colClasses="character", fileEncoding = "ISO-8859-1") %>%
-  as_tibble()
-gal3 <- read.csv2("R/data3.csv", colClasses="character", fileEncoding = "ISO-8859-1") %>%
-  as_tibble()
-gal4 <- read.csv2("R/data4.csv", colClasses="character", fileEncoding = "ISO-8859-1") %>%
-  as_tibble()
-gal5 <- read.csv2("R/data5.csv", colClasses="character", fileEncoding = "ISO-8859-1") %>%
-  as_tibble()
+paste("C:/Users/joaov/Documents/R/SITE" , dir("C:/Users/joaov/Documents/R/SITE", recursive=TRUE, pattern="*.zip"), sep="/") %>%
+  file.rename(file_names) 
 
-gal <- rbind(gal1,gal2,gal3,gal4,gal5)
+# Unzip files (how to do this puurrrly?)
+for (i in 1:length(file_names)) {
+  unzip(file_names[i]) %>%
+  file.rename(str_interp("data${i}.csv"))
+}
 
+# Create tibble
+temp <- list.files(path = ".", pattern="data.*.csv")
 
+# Generates a list of dataframes and convert each to tibble
+gal <- lapply(temp, read.csv2, colClasses="character", fileEncoding = "ISO-8859-1") %>%
+  map_df(as_tibble)
+
+esus <- read_csv2("esus.csv", col_types = cols(.default = "c"))
+
+# Remove files
+sapply(paste0("data", 1:length(file_names), ".csv"), unlink)
+sapply(paste0("", 1:length(file_names), ".zip"), unlink)
+unlink("SITE", recursive=TRUE)
+rm(temp, file_names, i)
 
 ####### Manipulação dos dados ###########
 mod_gal <- gal %>%
   select(nome = Paciente, cpf = CPF, data_cadastro_gal = Dt..Cadastro, data_liberação_resultado_gal = Dt..Liberação,
-         resultado_pcr = Resultado) %>%
+         laboratorio_cadastro = Laboratório.Cadastro,laboratorio_executor = Laboratório.Executor,resultado_pcr = Resultado) %>%
   mutate(nome = gsub(pattern = "[^a-zA-Z ]", "", nome)) %>%
   mutate(nome = stri_trans_general(toupper(str_squish(str_trim(nome))), "Latin-ASCII")) %>%
   mutate(across(everything(), ~na_if(.x, ""))) %>%
@@ -59,7 +67,7 @@ gal_esus_nome <- mod_gal %>%
   relocate(n_notificação, .after = id_gal) %>%
   relocate(resultado_pcr_esus, .after = resultado_pcr_gal) %>%
   relocate(cpf_esus, .after = cpf_gal) %>%
-  filter(resultado_pcr_esus == "Ignorado")
+  filter(resultado_pcr_esus == "Ignorado") 
 
 ####### Cria planilha ########
 # Cria worbook excel
@@ -74,4 +82,5 @@ for (i in 1:6) {
 }
 
 # Salva em arquivo xlsx
-saveWorkbook(wb, "R/revisar-resultados.xlsx", overwrite = TRUE)
+saveWorkbook(wb, str_interp("revisar-resultados-${format(today(), '%d-%m-%Y')}.xlsx"), overwrite = TRUE)
+rm(i,part,wb,df)
